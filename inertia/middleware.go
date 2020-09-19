@@ -18,7 +18,10 @@ func Middleware(inertia *Inertia) MiddlewareFunc {
 				return
 			}
 
-			if r.Method == "GET" && r.Header.Get("X-Inertia-Version") != inertia.GetVersion() {
+			// In case the assets version in the X-Inertia-Version header does not match the current version
+			// of assets we have on the server, return a 409 response which will cause Inertia to make a new
+			// hard visit.
+			if r.Method == "GET" && r.Header.Get("X-Inertia-Version") != inertia.getVersion() {
 				w.Header().Add("X-Inertia-Location", r.URL.String())
 				w.WriteHeader(http.StatusConflict)
 				return
