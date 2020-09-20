@@ -6,12 +6,23 @@ import (
 	"net/http"
 )
 
-var (
-	rootTmpl *template.Template
+type inertiaCtxKeyType string
 
-	version     string
-	versionFunc func() string
-)
+const inertiaCtxKey inertiaCtxKeyType = "inertia"
+
+type Inertia struct {
+	RootTemplate *template.Template
+
+	Version     string
+	VersionFunc func() string
+}
+
+func (i *Inertia) getVersion() string {
+	if i.VersionFunc != nil {
+		return i.VersionFunc()
+	}
+	return i.Version
+}
 
 type page struct {
 	Component string      `json:"component"`
@@ -20,36 +31,17 @@ type page struct {
 	Version   string      `json:"version"`
 }
 
-func Init(rootTemplate *template.Template) {
-	rootTmpl = rootTemplate
-}
-
-func Version(v string) {
-	version = v
-}
-
-func VersionFunc(f func() string) {
-	versionFunc = f
-}
-
-func GetVersion() string {
-	if versionFunc != nil {
-		return versionFunc()
-	}
-	return version
-}
-
-func Render(w http.ResponseWriter, r *http.Request, componentName string, props interface{}) {
+func (i *Inertia) render(w http.ResponseWriter, r *http.Request, componentName string, props interface{}) {
 	page := page{
 		Component: componentName,
 		Props:     props,
 		URL:       r.RequestURI,
-		Version:   GetVersion(),
+		Version:   i.getVersion(),
 	}
 
 	marshalled, err := json.Marshal(page)
 	if err != nil {
-		w.WriteHeader(500)
+		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
@@ -61,15 +53,20 @@ func Render(w http.ResponseWriter, r *http.Request, componentName string, props 
 		return
 	}
 
-	err = rootTmpl.Execute(w, map[string]interface{}{
+	err = i.RootTemplate.Execute(w, map[string]interface{}{
 		"page": template.HTML(marshalled),
 	})
 	if err != nil {
-		w.WriteHeader(500)
+		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 }
 
-func Middleware() {
-	// TODO
+func Render(w http.ResponseWriter, r *http.Request, componentName string, props interface{}) {
+	inertia, ok := r.Context().Value(inertiaCtxKey).(*Inertia)
+	if !ok {
+		panic("[Inertia] No middleware configured.")
+	}
+
+	inertia.render(w, r, componentName, props)
 }
