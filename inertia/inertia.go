@@ -2,7 +2,6 @@ package inertia
 
 import (
 	"encoding/json"
-	"fmt"
 	"html/template"
 	"net/http"
 	"strings"
@@ -21,8 +20,6 @@ type Inertia struct {
 
 type P map[string]interface{}
 
-type L func() interface{}
-
 func (i *Inertia) getVersion() string {
 	if i.VersionFunc != nil {
 		return i.VersionFunc()
@@ -37,7 +34,7 @@ type page struct {
 	Version   string                 `json:"version"`
 }
 
-func (i *Inertia) render(w http.ResponseWriter, r *http.Request, componentName string, props map[string]interface{}) {
+func (i *Inertia) render(w http.ResponseWriter, r *http.Request, componentName string, props P) {
 
 	// TODO:  merge shared props
 
@@ -67,7 +64,6 @@ func (i *Inertia) render(w http.ResponseWriter, r *http.Request, componentName s
 
 	marshalled, err := json.Marshal(page)
 	if err != nil {
-		fmt.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
