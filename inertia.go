@@ -16,9 +16,40 @@ type Inertia struct {
 
 	Version     string
 	VersionFunc func() string
+	shared      P
+	sharedLazy  []func(r *http.Request) P
+}
+
+func (i *Inertia) Share(p P) {
+	if i.shared == nil {
+		i.shared = P{}
+	}
+	i.shared.merge(p)
+}
+
+func (i *Inertia) ShareLazy(lazy func(r *http.Request) P) {
+	i.sharedLazy = append(i.sharedLazy, lazy)
 }
 
 type P map[string]interface{}
+
+// merge merges two maps. On duplicates, if two maps merge recursively, replace with other's key otherwise.
+func (p P) merge(other P) {
+	for k, v := range other {
+		existing, ok := p[k]
+		if ok {
+			existingP, ok1 := existing.(P)
+			vP, ok2 := v.(P)
+			if ok1 && ok2 {
+				existingP.merge(vP)
+			} else {
+				p[k] = v
+			}
+		} else {
+			p[k] = v
+		}
+	}
+}
 
 func (i *Inertia) getVersion() string {
 	if i.VersionFunc != nil {
@@ -34,9 +65,14 @@ type page struct {
 	Version   string                 `json:"version"`
 }
 
-func (i *Inertia) render(w http.ResponseWriter, r *http.Request, componentName string, props P) {
+func (i *Inertia) render(w http.ResponseWriter, r *http.Request, componentName string, p P) {
 
-	// TODO:  merge shared props
+	props := P{}
+	props.merge(p)
+
+	for _, lazy := range i.sharedLazy {
+		props.merge(lazy(r))
+	}
 
 	if only := strings.Split(r.Header.Get("X-Inertia-Partial-Data"), ","); len(only) != 0 && r.Header.Get("X-Inertia-Partial-Component") == componentName {
 		newProps := make(map[string]interface{})

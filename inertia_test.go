@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
 )
 
@@ -113,4 +114,64 @@ func TestPartialReload(t *testing.T) {
 
 		})
 	}
+}
+
+func TestMerge(t *testing.T) {
+	tests := []struct {
+		name     string
+		left     P
+		right    P
+		expected P
+	}{
+		{
+			"no conflicting values",
+			P{
+				"foo": "bar",
+			},
+			P{
+				"bar": "baz",
+			},
+			P{
+				"foo": "bar",
+				"bar": "baz",
+			},
+		},
+		{
+			"conflicting values (no map)",
+			P{
+				"foo": "bar",
+			},
+			P{
+				"foo": "baz",
+			},
+			P{
+				"foo": "baz",
+			},
+		},
+		{
+			"conflicting values (map)",
+			P{
+				"foo": P{"foo": "bar"},
+			},
+			P{
+				"foo": P{"bar": "baz"},
+			},
+			P{
+				"foo": P{
+					"foo": "bar",
+					"bar": "baz",
+				},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(tt *testing.T) {
+			tc.left.merge(tc.right)
+			if !reflect.DeepEqual(tc.left, tc.expected) {
+				tt.Errorf("expected %v, got %v", tc.expected, tc.left)
+			}
+		})
+	}
+
 }
