@@ -17,18 +17,20 @@ type Inertia struct {
 	Version     string
 	VersionFunc func() string
 	shared      P
-	sharedLazy  map[string]func(r *http.Request) interface{}
 }
 
-func (i *Inertia) Share(p P) {
+func (i *Inertia) ShareMulti(p P) {
 	if i.shared == nil {
 		i.shared = P{}
 	}
 	i.shared.merge(p)
 }
 
-func (i *Inertia) ShareLazy(prop string, lazy func(r *http.Request) interface{}) {
-	i.sharedLazy[prop] = lazy
+func (i *Inertia) Share(prop string, value interface{}) {
+	if i.shared == nil {
+		i.shared = P{}
+	}
+	i.shared[prop] = value
 }
 
 type P map[string]interface{}
@@ -66,14 +68,9 @@ type page struct {
 }
 
 func (i *Inertia) render(w http.ResponseWriter, r *http.Request, componentName string, p P) {
-
+	// merge shared and render pros into new P
 	props := P{}
 	props.merge(i.shared)
-
-	for prop, lazy := range i.sharedLazy {
-		props[prop] = lazy(r)
-	}
-
 	props.merge(p)
 
 	if only := strings.Split(r.Header.Get("X-Inertia-Partial-Data"), ","); len(only) != 0 && r.Header.Get("X-Inertia-Partial-Component") == componentName {
@@ -88,8 +85,11 @@ func (i *Inertia) render(w http.ResponseWriter, r *http.Request, componentName s
 
 	// perform lazy evaluation
 	for k, v := range props {
-		if f, ok := v.(func() interface{}); ok {
-			props[k] = f()
+		switch v := v.(type) {
+		case func() interface{}:
+			props[k] = v()
+		case func(r *http.Request) interface{}:
+			props[k] = v(r)
 		}
 	}
 
