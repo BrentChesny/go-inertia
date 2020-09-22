@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
 )
 
@@ -109,6 +110,135 @@ func TestPartialReload(t *testing.T) {
 				if tc.expectedProps[k] != sentProps[k] {
 					t.Errorf("Expected props %s, got %s", tc.expectedProps, sentProps)
 				}
+			}
+
+		})
+	}
+}
+
+func TestMerge(t *testing.T) {
+	tests := []struct {
+		name     string
+		left     P
+		right    P
+		expected P
+	}{
+		{
+			"no conflicting values",
+			P{
+				"foo": "bar",
+			},
+			P{
+				"bar": "baz",
+			},
+			P{
+				"foo": "bar",
+				"bar": "baz",
+			},
+		},
+		{
+			"conflicting values (no map)",
+			P{
+				"foo": "bar",
+			},
+			P{
+				"foo": "baz",
+			},
+			P{
+				"foo": "baz",
+			},
+		},
+		{
+			"conflicting values (map)",
+			P{
+				"foo": P{"foo": "bar"},
+			},
+			P{
+				"foo": P{"bar": "baz"},
+			},
+			P{
+				"foo": P{
+					"foo": "bar",
+					"bar": "baz",
+				},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(tt *testing.T) {
+			tc.left.merge(tc.right)
+			if !reflect.DeepEqual(tc.left, tc.expected) {
+				tt.Errorf("expected %v, got %v", tc.expected, tc.left)
+			}
+		})
+	}
+
+}
+
+func TestSharedProps(t *testing.T) {
+	tests := []struct {
+		name          string
+		renderProps   P
+		shareProps    map[string]interface{}
+		expectedProps P
+	}{
+		{
+			"no shared props",
+			P{"foo": "bar"},
+			nil,
+			P{"foo": "bar"},
+		},
+		{
+			"shared props",
+			P{"foo": "bar"},
+			map[string]interface{}{"bar": "buzz"},
+			P{
+				"foo": "bar",
+				"bar": "buzz",
+			},
+		},
+		{
+			"shared lazy prop with request param",
+			P{"foo": "bar"},
+			map[string]interface{}{
+				"bar": func(r *http.Request) interface{} { return r.Header.Get("X-Test-Value") },
+			},
+			P{
+				"foo": "bar",
+				"bar": "test-value",
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(tt *testing.T) {
+			//init
+			inertia := &Inertia{Version: "test"}
+			for k, v := range tc.shareProps {
+				inertia.Share(k, v)
+			}
+			req, _ := http.NewRequest(http.MethodGet, "test", nil)
+			req.Header.Add("X-Inertia", "true")
+			req.Header.Add("X-Test-Value", "test-value")
+			rw := httptest.NewRecorder()
+
+			inertia.render(rw, req, "test", tc.renderProps)
+
+			resp := rw.Result()
+			if resp.StatusCode != http.StatusOK {
+				t.Errorf("Expected status code 200, got %d", resp.StatusCode)
+			}
+
+			body, _ := ioutil.ReadAll(rw.Result().Body)
+			unmarshalledBody := page{}
+			err := json.Unmarshal(body, &unmarshalledBody)
+			if err != nil {
+				t.Error(err)
+			}
+			sentProps := P(unmarshalledBody.Props)
+
+			if !reflect.DeepEqual(sentProps, tc.expectedProps) {
+				tt.Errorf("expected %v, got %v", tc.expectedProps, sentProps)
 			}
 
 		})
