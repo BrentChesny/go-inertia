@@ -42,9 +42,9 @@ func (rw *responseWriter) WriteHeader(status int) {
 	if status == http.StatusFound {
 		switch rw.req.Method {
 		case "PUT", "PATCH", "DELETE":
-			rw.WriteHeader(http.StatusSeeOther)
+			rw.ResponseWriter.WriteHeader(http.StatusSeeOther)
 			return
 		}
 	}
-	rw.WriteHeader(status)
+	rw.ResponseWriter.WriteHeader(status)
 }
