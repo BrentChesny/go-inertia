@@ -90,6 +90,8 @@ func (i *Inertia) render(w http.ResponseWriter, r *http.Request, componentName s
 			props[k] = v()
 		case func(r *http.Request) interface{}:
 			props[k] = v(r)
+		case func(w http.ResponseWriter, r *http.Request) interface{}:
+			props[k] = v(w, r)
 		}
 	}
 
