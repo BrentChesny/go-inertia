@@ -12,7 +12,8 @@ type inertiaCtxKeyType string
 const inertiaCtxKey inertiaCtxKeyType = "inertia"
 
 type Inertia struct {
-	RootTemplate *template.Template
+	RootTemplate     *template.Template
+	RootTemplateData P
 
 	Version     string
 	VersionFunc func() string
@@ -118,6 +119,7 @@ func (i *Inertia) render(w http.ResponseWriter, r *http.Request, componentName s
 
 	err = i.RootTemplate.Execute(w, map[string]interface{}{
 		"page": template.HTML(marshalled),
+		"data": i.RootTemplateData,
 	})
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
